@@ -7,7 +7,7 @@ export const config = {
   zhipuAI: {
     apiKey: process.env.ZHIPUAI_API_KEY || '',
     baseURL: process.env.ZHIPUAI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4.5v',
+    model: process.env.ZHIPUAI_MODEL || 'glm-4.5v',
   },
 
   // MCP 服务器配置
