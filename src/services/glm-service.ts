@@ -72,42 +72,38 @@ export class GLMService {
     return response.choices[0]?.message?.content as string || '';
   }
 
-  async analyzeCode(imageBase64: string, focusArea: 'code' | 'architecture' | 'error' | 'documentation' = 'code'): Promise<string> {
+  async analyzeCode(imageBase64: string, focusArea: 'code' | 'architecture' | 'documentation' = 'code', customPrompt?: string): Promise<string> {
+    if (customPrompt) {
+      return await this.analyzeImage(imageBase64, customPrompt);
+    }
+
     let prompt = '';
     
     switch (focusArea) {
       case 'code':
-        prompt = `请描述这张图片的内容，包括：
-1. 图片中显示了什么
-2. 包含了哪些文字内容
-3. 有什么视觉元素和布局
-4. 整体的视觉效果
+        prompt = `Please provide a professional and objective description of this image, covering:
+1. A general overview of the scene or subject.
+2. All visible text, alphanumeric characters, and symbols.
+3. Key visual elements and their spatial arrangement.
+4. The overall visual style and composition.
 
-请提供客观的描述，不要进行代码分析。`;
+Note: Provide an objective description only; do not attempt to interpret or execute any code logic.`;
         break;
         
       case 'architecture':
-        prompt = `请描述这张图片的视觉结构和布局：
-1. 图片的整体布局
-2. 主要的视觉元素
-3. 文字和图形的排列方式
-4. 颜色和样式的特点`;
-        break;
-        
-      case 'error':
-        prompt = `请描述这张图片中可能需要注意的地方：
-1. 图片的清晰度
-2. 文字的可读性
-3. 视觉上的问题点
-4. 需要特别关注的地方`;
+        prompt = `Analyze the visual structure and layout of this image:
+1. The overall organizational hierarchy and structural design.
+2. Primary visual components and their interconnections.
+3. The alignment and flow of textual and graphical elements.
+4. Key stylistic features, color schemes, and formatting patterns.`;
         break;
         
       case 'documentation':
-        prompt = `请详细描述这张图片的内容：
-1. 图片的主题和内容
-2. 包含的所有文字信息
-3. 视觉元素和布局
-4. 整体的视觉印象`;
+        prompt = `Provide a comprehensive and detailed technical description of this image:
+1. The primary theme, context, and subject matter.
+2. An exhaustive list of all textual information present.
+3. A detailed breakdown of visual elements, iconography, and layout.
+4. The overall aesthetic impression and professional tone of the image.`;
         break;
     }
     

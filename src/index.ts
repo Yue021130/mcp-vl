@@ -42,22 +42,26 @@ class MCPServer {
         tools: [
           {
             name: 'auto_analyze_image',
-            description: '自动获取并分析图片（支持文件路径、网络URL或剪贴板）',
+            description: 'Perform advanced visual analysis on a specified image file or URL. Specialized in extracting text, identifying structures, and describing visual content.',
             inputSchema: {
               type: 'object',
               properties: {
                 imagePath: {
                   type: 'string',
-                  description: '图片文件路径或网络URL（可选，不提供则使用剪贴板）',
+                  description: 'The local path or URL of the image file to be visually processed.',
                 },
                 focusArea: {
                   type: 'string',
-                  enum: ['code', 'architecture', 'error', 'documentation'],
-                  description: '分析重点区域',
+                  enum: ['code', 'architecture', 'documentation'],
+                  description: 'The preset analysis strategy: \n- "code": Focuses on general content and precise text/symbol extraction.\n- "architecture": Analyzes structural design, layout hierarchy, and component relationships.\n- "documentation": Provides a comprehensive technical breakdown and exhaustive text capture.\nThis is IGNORED if "customPrompt" is provided.',
                   default: 'code',
                 },
+                customPrompt: {
+                  type: 'string',
+                  description: 'A custom analysis instruction that overrides the predefined focusArea prompt.',
+                },
               },
-              required: [],
+              required: ['imagePath'],
             },
           },
         ],
@@ -76,7 +80,8 @@ class MCPServer {
         if (name === 'auto_analyze_image') {
           result = await this.autoImageService.autoGetAndAnalyzeImage(
             typedArgs.imagePath,
-            typedArgs.focusArea || 'code'
+            typedArgs.focusArea || 'code',
+            typedArgs.customPrompt
           );
         } else {
           throw new Error(`未知工具: ${name}`);
