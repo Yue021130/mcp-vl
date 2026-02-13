@@ -1,14 +1,9 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { GLMService } from './glm-service';
 import { ImageAnalysisResult } from '../types/index';
 import { logger } from '../utils/logger';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import axios from 'axios';
-
-const execAsync = promisify(exec);
 
 export class AutoImageService {
   private glmService: GLMService;
@@ -20,52 +15,37 @@ export class AutoImageService {
   }
 
   /**
-   * 自动获取图片并分析（支持文件路径和网络URL）
+   * 获取并分析本地图片文件
    */
   async autoGetAndAnalyzeImage(
     imagePath: string,
-    focusArea: 'code' | 'architecture' | 'documentation' = 'code',
-    customPrompt?: string
+    focusArea: 'code' | 'architecture' = 'code',
+    customPrompt?: string,
+    processingOptions?: {
+      grayscale?: boolean;
+      contrast?: number;
+      brightness?: number;
+      sharpen?: boolean;
+    }
   ): Promise<ImageAnalysisResult & { source: string }> {
     try {
-      logger.info('开始获取并分析图片', { imagePath, focusArea, hasCustomPrompt: !!customPrompt });
+      logger.info('开始分析本地图片', { imagePath, focusArea, hasCustomPrompt: !!customPrompt, processingOptions });
 
-      let source: string;
-      let finalImagePath: string;
-
-      // 检查是否为网络URL
-      if (this.isUrl(imagePath)) {
-        source = 'url';
-        finalImagePath = await this.downloadImageFromUrl(imagePath);
-        logger.info('从网络URL下载图片', { url: imagePath, path: finalImagePath });
-      } else {
-        // 如果提供了文件路径，直接使用
-        source = 'file';
-        finalImagePath = imagePath;
-
-        // 验证文件是否存在
-        if (!(await this.fileExists(finalImagePath))) {
-          throw new Error(`文件不存在: ${imagePath}`);
-        }
-
-        logger.info('使用提供的文件路径', { path: finalImagePath });
+      // 验证文件是否存在
+      if (!(await this.fileExists(imagePath))) {
+        throw new Error(`文件不存在: ${imagePath}`);
       }
 
       // 分析图片
-      const result = await this.analyzeImageFile(finalImagePath, focusArea, customPrompt);
-
-      // 如果是URL下载的图片，清理临时文件
-      if (source === 'url') {
-        await this.cleanupTempFile(finalImagePath);
-      }
+      const result = await this.analyzeImageFile(imagePath, focusArea, customPrompt, processingOptions);
 
       return {
         ...result,
-        source,
+        source: 'file',
       };
     } catch (error) {
-      logger.error('获取并分析图片失败', { error });
-      throw new Error(`自动处理图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      logger.error('分析图片失败', { error });
+      throw new Error(`处理图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }
   }
 
@@ -86,8 +66,14 @@ export class AutoImageService {
    */
   private async analyzeImageFile(
     imagePath: string,
-    focusArea: 'code' | 'architecture' | 'documentation' = 'code',
-    customPrompt?: string
+    focusArea: 'code' | 'architecture' = 'code',
+    customPrompt?: string,
+    processingOptions?: {
+      grayscale?: boolean;
+      contrast?: number;
+      brightness?: number;
+      sharpen?: boolean;
+    }
   ): Promise<ImageAnalysisResult> {
     try {
       // 读取图片文件
@@ -95,7 +81,30 @@ export class AutoImageService {
       
       // 使用 sharp 处理图片
       const sharp = require('sharp');
-      const processedImage = await sharp(imageBuffer)
+      let imageProcessor = sharp(imageBuffer);
+
+      // 应用多样化处理方法
+      if (processingOptions?.grayscale) {
+        imageProcessor = imageProcessor.grayscale();
+      }
+      if (processingOptions?.contrast !== undefined || processingOptions?.brightness !== undefined) {
+        imageProcessor = imageProcessor.modulate({
+          brightness: processingOptions?.brightness ?? 1.0,
+        });
+        // 智谱/AI 对对比度敏感，sharp 的 contrast 是在自适应直方图均衡化基础上做的
+        if (processingOptions?.contrast !== undefined) {
+          imageProcessor = imageProcessor.clahe({
+            width: 10,
+            height: 10,
+            maxSlope: processingOptions.contrast * 3 // 近似映射
+          });
+        }
+      }
+      if (processingOptions?.sharpen) {
+        imageProcessor = imageProcessor.sharpen();
+      }
+
+      const processedImage = await imageProcessor
         .jpeg({ quality: 90 })
         .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
         .toBuffer();
@@ -173,99 +182,6 @@ export class AutoImageService {
       logger.info('所有临时文件已清理', { dir: this.tempDir });
     } catch (error) {
       logger.warn('清理临时目录失败', { error });
-    }
-  }
-
-  /**
-   * 检查字符串是否为有效的URL
-   */
-  private isUrl(str: string): boolean {
-    try {
-      const url = new URL(str);
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * 从URL下载图片
-   */
-  private async downloadImageFromUrl(url: string): Promise<string> {
-    try {
-      // 确保临时目录存在
-      await fs.mkdir(this.tempDir, { recursive: true });
-
-      // 生成唯一的文件名
-      const timestamp = Date.now();
-      const urlHash = Buffer.from(url).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
-      const extension = this.getImageExtensionFromUrl(url);
-      const fileName = `downloaded_${timestamp}_${urlHash}.${extension}`;
-      const outputPath = path.join(this.tempDir, fileName);
-
-      logger.info('开始下载图片', { url, outputPath });
-
-      // 下载图片
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 30000, // 30秒超时
-        maxContentLength: 10 * 1024 * 1024, // 10MB最大文件大小
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        }
-      });
-
-      // 保存到临时文件
-      await fs.writeFile(outputPath, response.data);
-
-      // 验证文件是否为有效图片
-      if (!(await this.isValidImage(outputPath))) {
-        await fs.unlink(outputPath);
-        throw new Error('下载的文件不是有效的图片格式');
-      }
-
-      logger.info('图片下载成功', { url, outputPath, size: response.data.length });
-      return outputPath;
-    } catch (error) {
-      logger.error('从URL下载图片失败', { url, error });
-      throw new Error(`下载图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
-  }
-
-  /**
-   * 从URL中提取图片扩展名
-   */
-  private getImageExtensionFromUrl(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      const lastDot = pathname.lastIndexOf('.');
-
-      if (lastDot > 0) {
-        const extension = pathname.substring(lastDot + 1).toLowerCase();
-        // 支持的图片格式
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) {
-          return extension;
-        }
-      }
-    } catch {
-      // 忽略URL解析错误
-    }
-
-    // 默认返回png
-    return 'png';
-  }
-
-  /**
-   * 验证文件是否为有效图片
-   */
-  private async isValidImage(filePath: string): Promise<boolean> {
-    try {
-      const sharp = require('sharp');
-      const metadata = await sharp(filePath).metadata();
-      return metadata.format !== undefined && metadata.width !== undefined && metadata.height !== undefined;
-    } catch {
-      return false;
     }
   }
 }

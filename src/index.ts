@@ -42,24 +42,34 @@ class MCPServer {
         tools: [
           {
             name: 'auto_analyze_image',
-            description: 'Perform advanced visual analysis on a specified image file or URL. Specialized in extracting text, identifying structures, and describing visual content.',
+            description: 'Perform advanced visual analysis on a specified local image file. Specialized in extracting text, identifying structures, and describing visual content.',
             inputSchema: {
               type: 'object',
               properties: {
                 imagePath: {
                   type: 'string',
-                  description: 'The local path or URL of the image file to be visually processed.',
+                  description: 'The local absolute path of the image file to be visually processed.',
                 },
                 focusArea: {
                   type: 'string',
-                  enum: ['code', 'architecture', 'documentation'],
-                  description: 'The preset analysis strategy: \n- "code": Focuses on general content and precise text/symbol extraction.\n- "architecture": Analyzes structural design, layout hierarchy, and component relationships.\n- "documentation": Provides a comprehensive technical breakdown and exhaustive text capture.\nThis is IGNORED if "customPrompt" is provided.',
+                  enum: ['code', 'architecture'],
+                  description: 'The preset analysis strategy: \n- "code": Focuses on general content and precise text/symbol extraction.\n- "architecture": Analyzes structural design, layout hierarchy, and component relationships.\nThis is IGNORED if "customPrompt" is provided.',
                   default: 'code',
                 },
                 customPrompt: {
                   type: 'string',
                   description: 'A custom analysis instruction that overrides the predefined focusArea prompt.',
                 },
+                processingOptions: {
+                  type: 'object',
+                  properties: {
+                    grayscale: { type: 'boolean' },
+                    contrast: { type: 'number' },
+                    brightness: { type: 'number' },
+                    sharpen: { type: 'boolean' }
+                  },
+                  description: 'Optional image preprocessing. Available settings:\n- grayscale: boolean (Best for OCR on color backgrounds)\n- contrast: number (Range: 1.0 to 10.0. 1.0 is original, 1.5-3.0 recommended for enhancement)\n- brightness: number (Range: 0.0 to 3.0. 1.0 is original, 1.2-1.5 to brighten dark images)\n- sharpen: boolean (Fixes blurry screenshots or tiny text)'
+                }
               },
               required: ['imagePath'],
             },
@@ -81,7 +91,8 @@ class MCPServer {
           result = await this.autoImageService.autoGetAndAnalyzeImage(
             typedArgs.imagePath,
             typedArgs.focusArea || 'code',
-            typedArgs.customPrompt
+            typedArgs.customPrompt,
+            typedArgs.processingOptions
           );
         } else {
           throw new Error(`未知工具: ${name}`);

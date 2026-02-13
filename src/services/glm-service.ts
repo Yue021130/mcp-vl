@@ -72,7 +72,7 @@ export class GLMService {
     return response.choices[0]?.message?.content as string || '';
   }
 
-  async analyzeCode(imageBase64: string, focusArea: 'code' | 'architecture' | 'documentation' = 'code', customPrompt?: string): Promise<string> {
+  async analyzeCode(imageBase64: string, focusArea: 'code' | 'architecture' = 'code', customPrompt?: string): Promise<string> {
     if (customPrompt) {
       return await this.analyzeImage(imageBase64, customPrompt);
     }
@@ -96,14 +96,6 @@ Note: Provide an objective description only; do not attempt to interpret or exec
 2. Primary visual components and their interconnections.
 3. The alignment and flow of textual and graphical elements.
 4. Key stylistic features, color schemes, and formatting patterns.`;
-        break;
-        
-      case 'documentation':
-        prompt = `Provide a comprehensive and detailed technical description of this image:
-1. The primary theme, context, and subject matter.
-2. An exhaustive list of all textual information present.
-3. A detailed breakdown of visual elements, iconography, and layout.
-4. The overall aesthetic impression and professional tone of the image.`;
         break;
     }
     
