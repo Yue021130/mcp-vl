@@ -1,6 +1,6 @@
 # MCP 自动图片分析服务器
 
-基于 GLM 模型的 MCP (Model Context Protocol) 服务器，提供智能图片分析功能，支持文件路径和剪贴板两种输入方式。
+基于 GLM 模型的 MCP (Model Context Protocol) 服务器，提供智能图片分析功能，**只能支持本地图片**。
 
 ## 功能特性
 
