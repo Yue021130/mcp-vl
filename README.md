@@ -1,22 +1,21 @@
 # MCP 自动图片分析服务器
 
-基于 GLM-4.5V 模型的 MCP (Model Context Protocol) 服务器，提供智能图片分析功能，支持文件路径和剪贴板两种输入方式。
+基于 GLM 模型的 MCP (Model Context Protocol) 服务器，提供智能图片分析功能，支持文件路径和剪贴板两种输入方式。
 
 ## 功能特性
 
-- 🤖 **智能获取**: 自动从文件路径或剪贴板获取图片
-- 💻 **代码内容提取**: 从图片中提取代码文本
-- 🏗️ **架构分析**: 分析代码的结构和设计模式
-- 🐛 **错误检测**: 识别代码中的错误和问题
-- 📚 **文档生成**: 自动生成代码文档
-- 🔍 **语言识别**: 自动识别编程语言
-- 🎯 **专注代码**: 专门优化用于代码图片分析
+- 🤖 **智能获取**: 支持分析本地绝对路径的图片文件
+- 💻 **内容提取 (Code)**: 精准提取图片中的文本、代码和符号
+- 🏗️ **结构分析 (Architecture)**: 分析图片的视觉结构、布局和层级
+- 🎨 **图像预处理**: 内置锐化、对比度增强、黑白转换等滤镜，提升识别率
+- 🎯 **自定义指令**: 支持用户输入自定义 Prompt 进行针对性分析
+- 🚀 **高性能**: 基于 GLM-4v 视觉模型，响应迅速
 
 ## 技术栈
 
 - **运行时**: Node.js 18+
 - **框架**: TypeScript
-- **模型**: GLM-4.5V (智谱 AI)
+- **模型**: 智谱 AI
 - **图片处理**: Sharp
 - **协议**: MCP (Model Context Protocol)
 
@@ -30,18 +29,13 @@ pnpm install
 
 ### 2. 配置环境变量
 
-复制 `.env.example` 为 `.env` 并填入配置：
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件：
+为`.env` 并填入配置：
 
 ```env
 # 智谱 AI API 配置
 ZHIPUAI_API_KEY=your_zhipuai_api_key_here
-ZHIPUAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+ZHIPUAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+ZHIPUAI_MODEL=glm-4.1v-thinking-flash
 
 # MCP 服务器配置
 MCP_SERVER_NAME=mcp-vl
@@ -72,20 +66,24 @@ pnpm run build
 构建项目后，使用以下命令添加 MCP 服务器：
 
 ```bash
-claude mcp add mcp-vl --scope user --env ZHIPUAI_API_KEY=your_api_key_here \
+claude mcp add mcp-vl --scope user --env-file=/path/mcp-vl/.env" \
+    --env ZHIPUAI_API_KEY=your_api_key_here  \
     -- node /path/mcp-vl/dist/index.js
 ```
 
-#### 方式二：手动配置
+#### 方式二：手动配置（推荐）
 
-将以下配置添加到你的 Claude Code 配置中：
+将以下配置添加到你的 `.claude.json` 配置文件中。注意：为了确保项目能正确读取配置文件，必须使用 `--env-file` 参数指向项目的 `.env` 文件绝对路径。
 
 ```json
 {
   "mcpServers": {
     "mcp-vl": {
       "command": "node",
-      "args": ["/path/mcp-vl/dist/index.js"],
+      "args": [
+        "--env-file=/绝对路径/到你的/mcp-vl/.env", 
+        "/绝对路径/到你的/mcp-vl/dist/index.js"
+      ],
       "env": {
         "ZHIPUAI_API_KEY": "your_api_key_here"
       }
@@ -96,34 +94,32 @@ claude mcp add mcp-vl --scope user --env ZHIPUAI_API_KEY=your_api_key_here \
 
 ## Claude 提示词
 ```
-## ⚠️ 图片处理规范 - 非常重要，一定要严格执行
-**重要提示：在 Claude 中使用时，禁止使用 read 工具进行读取图片，因为读取图片工具失效了。请使用 mcp-vl 里的 auto_analyze_image 工具进行读取。**
+## ⚠️ 图片处理规范 - 非常重要
+**重要提示：在 Claude 中使用时，禁止使用 read 工具读取图片二进制数据。请直接使用 mcp-vl 里的 auto_analyze_image 工具进行视觉分析。**
 ```
 
 ### 可用工具
 
 #### auto_analyze_image
-自动获取并分析图片（支持文件路径或剪贴板）
+对指定的本地图片文件进行高级视觉分析。
 
-```json
-{
-  "name": "auto_analyze_image",
-  "arguments": {
-    "imagePath": "/path/to/image.png", // 可选，不提供则使用剪贴板
-    "focusArea": "code" // "code", "architecture", "error", "documentation"
-  }
-}
-```
+**参数说明：**
+- `imagePath` (必填): 图片文件的绝对路径。
+- `focusArea` (可选): 预设分析策略。
+  - `code`: 提取文本、代码和符号（默认）。
+  - `architecture`: 分析结构、布局和层级。
+  *注意：如果提供了 `customPrompt`，此选项将被忽略。*
+- `customPrompt` (可选): 自定义分析指令，覆盖预设模式。
+- `processingOptions` (可选): 图片预处理选项，用于增强识别效果。
+  - `grayscale`: 转为黑白（适合 OCR）。
+  - `contrast`: 调整对比度（1.0-10.0）。
+  - `brightness`: 调整亮度（0.0-3.0）。
+  - `sharpen`: 锐化处理。
 
-**使用方式：**
-1. **文件路径**: 提供图片文件路径进行分析
-2. **剪贴板**: 不提供路径，自动从剪贴板获取图片
-
-**分析类型说明：**
-- `code`: 提取代码内容，识别编程语言，分析代码结构
-- `architecture`: 分析代码架构设计，模块关系，设计模式
-- `error`: 检查代码错误，性能问题，安全隐患
-- `documentation`: 生成代码文档，函数说明，使用示例
+**使用示例：**
+1. **基础分析**: `auto_analyze_image(imagePath="/path/to/img.png")`
+2. **自定义指令**: `auto_analyze_image(imagePath="/path/to/img.png", customPrompt="提取图中所有红色的文字")`
+3. **增强处理**: `auto_analyze_image(imagePath="/path/to/img.png", processingOptions={contrast: 2.0, grayscale: true})`
 
 ## 开发
 
