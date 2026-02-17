@@ -1,4 +1,7 @@
-import { GLMService } from './glm-service';
+import { GLMV41Service } from './glm-v41-service';
+import { InternS1Service } from './intern-s1-service';
+import { QwenVLService } from './qwen-vl-service';
+import { BaseVisionService } from './base-vision-service';
 import { ImageAnalysisResult } from '../types/index';
 import { logger } from '../utils/logger';
 import * as fs from 'fs/promises';
@@ -6,12 +9,24 @@ import * as path from 'path';
 import * as os from 'os';
 
 export class AutoImageService {
-  private glmService: GLMService;
+  private services: Map<string, BaseVisionService>;
   private tempDir: string;
 
   constructor() {
-    this.glmService = new GLMService();
+    this.services = new Map([
+      ['glm-4.1v', new GLMV41Service() as BaseVisionService],
+      ['intern-s1', new InternS1Service() as BaseVisionService],
+      ['qwen-vl', new QwenVLService() as BaseVisionService],
+    ]);
     this.tempDir = path.join(os.tmpdir(), 'mcp-vl-auto');
+  }
+
+  private getService(modelType: string): BaseVisionService {
+    const service = this.services.get(modelType);
+    if (!service) {
+      throw new Error(`不支持的模型类型: ${modelType}`);
+    }
+    return service;
   }
 
   /**
@@ -26,10 +41,11 @@ export class AutoImageService {
       contrast?: number;
       brightness?: number;
       sharpen?: boolean;
-    }
+    },
+    modelType: 'glm-4.1v' | 'intern-s1' | 'qwen-vl' = 'glm-4.1v'
   ): Promise<ImageAnalysisResult & { source: string }> {
     try {
-      logger.info('开始分析本地图片', { imagePath, focusArea, hasCustomPrompt: !!customPrompt, processingOptions });
+      logger.info('开始分析本地图片', { imagePath, focusArea, modelType, hasCustomPrompt: !!customPrompt, processingOptions });
 
       // 验证文件是否存在
       if (!(await this.fileExists(imagePath))) {
@@ -37,7 +53,7 @@ export class AutoImageService {
       }
 
       // 分析图片
-      const result = await this.analyzeImageFile(imagePath, focusArea, customPrompt, processingOptions);
+      const result = await this.analyzeImageFile(imagePath, focusArea, customPrompt, processingOptions, modelType);
 
       return {
         ...result,
@@ -73,7 +89,8 @@ export class AutoImageService {
       contrast?: number;
       brightness?: number;
       sharpen?: boolean;
-    }
+    },
+    modelType: 'glm-4.1v' | 'intern-s1' | 'qwen-vl' = 'glm-4.1v'
   ): Promise<ImageAnalysisResult> {
     try {
       // 读取图片文件
@@ -115,8 +132,9 @@ export class AutoImageService {
       const metadata = await sharp(imageBuffer).metadata();
       const fileSize = (imageBuffer.length / 1024).toFixed(2) + ' KB';
 
-      // 使用 GLM 服务分析图片
-      const analysisResult = await this.glmService.analyzeCode(base64, focusArea, customPrompt);
+      // 选择服务分析图片
+      const service = this.getService(modelType);
+      const analysisResult = await service.analyzeCode(base64, focusArea, customPrompt);
 
       // 解析结果
       let result: ImageAnalysisResult;
@@ -130,7 +148,7 @@ export class AutoImageService {
           layout: parsed.layout,
           issues: parsed.issues,
           details: parsed.details,
-          summary: parsed.summary || analysisResult.substring(0, 500),
+          summary: parsed.summary || (typeof analysisResult === 'string' ? analysisResult.substring(0, 500) : 'No summary available'),
           confidence: 0.9,
           metadata: {
             format: metadata.format,

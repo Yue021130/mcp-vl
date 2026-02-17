@@ -7,13 +7,13 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { config } from './config/index';
-import { GLMService } from './services/glm-service';
+import { GLMV41Service } from './services/glm-v41-service';
 import { AutoImageService } from './services/auto-image-service';
 import { logger } from './utils/logger';
 
 class MCPServer {
   private server: Server;
-  private glmService: GLMService;
+  private glmService: GLMV41Service;
   private autoImageService: AutoImageService;
 
   constructor() {
@@ -29,7 +29,7 @@ class MCPServer {
       }
     );
 
-    this.glmService = new GLMService();
+    this.glmService = new GLMV41Service();
     this.autoImageService = new AutoImageService();
 
     this.setupHandlers();
@@ -69,7 +69,13 @@ class MCPServer {
                     sharpen: { type: 'boolean' }
                   },
                   description: 'Optional image preprocessing. Available settings:\n- grayscale: boolean (Best for OCR on color backgrounds)\n- contrast: number (Range: 1.0 to 10.0. 1.0 is original, 1.5-3.0 recommended for enhancement)\n- brightness: number (Range: 0.0 to 3.0. 1.0 is original, 1.2-1.5 to brighten dark images)\n- sharpen: boolean (Fixes blurry screenshots or tiny text)'
-                }
+                },
+                modelType: {
+                  type: 'string',
+                  enum: ['glm-4.1v', 'intern-s1', 'qwen-vl'],
+                  description: 'Select the model to use for analysis. "glm-4.1v" (ZhipuAI), "intern-s1" (Shanghai AI Lab Intern-S1), or "qwen-vl" (Qwen3-VL-235B on ModelScope).',
+                  default: 'glm-4.1v',
+                },
               },
               required: ['imagePath'],
             },
@@ -92,7 +98,8 @@ class MCPServer {
             typedArgs.imagePath,
             typedArgs.focusArea || 'code',
             typedArgs.customPrompt,
-            typedArgs.processingOptions
+            typedArgs.processingOptions,
+            typedArgs.modelType || 'glm-4.1v'
           );
         } else {
           throw new Error(`未知工具: ${name}`);

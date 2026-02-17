@@ -23,7 +23,7 @@ export interface CodeAnalysisResult extends ImageAnalysisResult {
   documentation?: string;
 }
 
-export interface GLMMessage {
+export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string | Array<{
     type: 'text' | 'image_url';
@@ -34,21 +34,21 @@ export interface GLMMessage {
   }>;
 }
 
-export interface GLMRequest {
+export interface ChatRequest {
   model: string;
-  messages: GLMMessage[];
+  messages: ChatMessage[];
   temperature?: number;
   max_tokens?: number;
 }
 
-export interface GLMResponse {
+export interface ChatResponse {
   id: string;
   object: string;
   created: number;
   model: string;
   choices: Array<{
     index: number;
-    message: GLMMessage;
+    message: ChatMessage;
     finish_reason: string;
   }>;
   usage: {
@@ -57,6 +57,10 @@ export interface GLMResponse {
     total_tokens: number;
   };
 }
+
+export interface GLMMessage extends ChatMessage {}
+export interface GLMRequest extends ChatRequest {}
+export interface GLMResponse extends ChatResponse {}
 
 export interface MCPToolConfig {
   name: string;
