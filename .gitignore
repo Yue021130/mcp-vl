@@ -24,7 +24,7 @@ pids/
 *.pid
 *.seed
 *.pid.lock
-
+.serena
 # 覆盖率目录
 coverage/
 .nyc_output/
